@@ -14,7 +14,7 @@ class WaybackMachineDownloader
 
   include ArchiveAPI
 
-  VERSION = "2.3.2"
+  VERSION = "2.3.3"
 
   attr_accessor :base_url, :exact_url, :directory, :all_timestamps,
     :from_timestamp, :to_timestamp, :only_filter, :exclude_filter, 
@@ -272,6 +272,7 @@ class WaybackMachineDownloader
       file_path = file_path.gsub(/[:*?&=<>\\|]/) {|s| '%' + s.ord.to_s(16) }
     end
     unless File.exist? file_path
+      retries = 5
       begin
         structure_dir_path dir_path
         open(file_path, "wb") do |file|
@@ -287,10 +288,18 @@ class WaybackMachineDownloader
             end
           rescue StandardError => e
             puts "#{file_url} # #{e}"
+            raise e
           end
         end
       rescue StandardError => e
-        puts "#{file_url} # #{e}"
+        retries -= 1
+        if retries > 0
+          puts "Retrying... (#{5 - retries}/5)"
+          sleep(1)
+          retry
+        else
+          puts "Failed to download #{file_url} after 5 attempts."
+        end
       ensure
         if not @all and File.exist?(file_path) and File.size(file_path) == 0
           File.delete(file_path)
